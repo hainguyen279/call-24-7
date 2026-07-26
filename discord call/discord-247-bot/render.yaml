@@ -1,0 +1,10 @@
+services:
+  - type: worker
+    name: discord-247-bot
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
