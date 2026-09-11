@@ -62,49 +62,11 @@ let reconnectTimeout = null;
 
 async function joinChannel(guildId, channelId) {
   try {
-    // Nếu đang có connection cũ (kể cả đang trong quá trình reconnect), hủy nó trước
-    // để tránh 2 connection tranh nhau -> gây timeout khi vào Ready state.
-    const existing = getVoiceConnection(guildId);
-    if (existing) {
-      existing.removeAllListeners();
-      try { existing.destroy(); } catch (e) {}
-    }
-    if (reconnectTimeout) {
-      clearTimeout(reconnectTimeout);
-      reconnectTimeout = null;
-    }
-
     const guild = await client.guilds.fetch(guildId);
     const channel = await guild.channels.fetch(channelId);
 
     if (!channel || !channel.isVoiceBased()) {
       console.error('❌ Channel không phải voice channel hợp lệ.');
-      return false;
-    }
-
-    // Đảm bảo đã có thông tin member của chính bot (đặc biệt cần khi auto-reconnect,
-    // lúc đó guild.members.me có thể chưa được cache -> permissionsFor trả về null).
-    let me = guild.members.me;
-    if (!me) {
-      try {
-        me = await guild.members.fetchMe();
-      } catch (e) {
-        me = null;
-      }
-    }
-
-    if (me) {
-      const perms = channel.permissionsFor(me);
-      if (perms && (!perms.has('Connect') || !perms.has('Speak'))) {
-        console.error(`❌ Bot thiếu quyền Connect/Speak riêng ở channel "${channel.name}" (permission overwrite chặn).`);
-        return false;
-      }
-      // Nếu perms là null (không xác định được), bỏ qua check thay vì chặn cứng —
-      // để entersState() bên dưới tự báo lỗi thật nếu thực sự thiếu quyền.
-    }
-
-    if (channel.userLimit && channel.userLimit > 0 && channel.full) {
-      console.error(`❌ Voice channel "${channel.name}" đã đầy (user limit ${channel.userLimit}).`);
       return false;
     }
 
@@ -144,7 +106,7 @@ async function joinChannel(guildId, channelId) {
     console.log(`✅ Đã vào voice channel: ${channel.name} (${guild.name})`);
     return true;
   } catch (error) {
-    console.error('❌ Lỗi khi join voice channel:', error.code || '', error.message, '\n', error.stack);
+    console.error('❌ Lỗi khi join voice channel:', error.message);
     scheduleReconnect();
     return false;
   }
