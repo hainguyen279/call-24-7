@@ -62,11 +62,34 @@ let reconnectTimeout = null;
 
 async function joinChannel(guildId, channelId) {
   try {
+    // Nếu đang có connection cũ (kể cả đang trong quá trình reconnect), hủy nó trước
+    // để tránh 2 connection tranh nhau -> gây timeout khi vào Ready state.
+    const existing = getVoiceConnection(guildId);
+    if (existing) {
+      existing.removeAllListeners();
+      try { existing.destroy(); } catch (e) {}
+    }
+    if (reconnectTimeout) {
+      clearTimeout(reconnectTimeout);
+      reconnectTimeout = null;
+    }
+
     const guild = await client.guilds.fetch(guildId);
     const channel = await guild.channels.fetch(channelId);
 
     if (!channel || !channel.isVoiceBased()) {
       console.error('❌ Channel không phải voice channel hợp lệ.');
+      return false;
+    }
+
+    const perms = channel.permissionsFor(guild.members.me);
+    if (!perms?.has('Connect') || !perms?.has('Speak')) {
+      console.error(`❌ Bot thiếu quyền Connect/Speak riêng ở channel "${channel.name}" (permission overwrite chặn).`);
+      return false;
+    }
+
+    if (channel.userLimit && channel.userLimit > 0 && channel.full) {
+      console.error(`❌ Voice channel "${channel.name}" đã đầy (user limit ${channel.userLimit}).`);
       return false;
     }
 
@@ -106,7 +129,7 @@ async function joinChannel(guildId, channelId) {
     console.log(`✅ Đã vào voice channel: ${channel.name} (${guild.name})`);
     return true;
   } catch (error) {
-    console.error('❌ Lỗi khi join voice channel:', error.message);
+    console.error('❌ Lỗi khi join voice channel:', error.code || '', error.message, '\n', error.stack);
     scheduleReconnect();
     return false;
   }
