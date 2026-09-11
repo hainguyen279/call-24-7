@@ -82,10 +82,25 @@ async function joinChannel(guildId, channelId) {
       return false;
     }
 
-    const perms = channel.permissionsFor(guild.members.me);
-    if (!perms?.has('Connect') || !perms?.has('Speak')) {
-      console.error(`❌ Bot thiếu quyền Connect/Speak riêng ở channel "${channel.name}" (permission overwrite chặn).`);
-      return false;
+    // Đảm bảo đã có thông tin member của chính bot (đặc biệt cần khi auto-reconnect,
+    // lúc đó guild.members.me có thể chưa được cache -> permissionsFor trả về null).
+    let me = guild.members.me;
+    if (!me) {
+      try {
+        me = await guild.members.fetchMe();
+      } catch (e) {
+        me = null;
+      }
+    }
+
+    if (me) {
+      const perms = channel.permissionsFor(me);
+      if (perms && (!perms.has('Connect') || !perms.has('Speak'))) {
+        console.error(`❌ Bot thiếu quyền Connect/Speak riêng ở channel "${channel.name}" (permission overwrite chặn).`);
+        return false;
+      }
+      // Nếu perms là null (không xác định được), bỏ qua check thay vì chặn cứng —
+      // để entersState() bên dưới tự báo lỗi thật nếu thực sự thiếu quyền.
     }
 
     if (channel.userLimit && channel.userLimit > 0 && channel.full) {
